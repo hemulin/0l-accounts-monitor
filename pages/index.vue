@@ -2,7 +2,10 @@
 import accounts from '~/accounts.json';
 import AccountRow from '~/components/AccountRow.vue';
 import { onMounted, ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
+const progress = ref(0);
 const isDataLoaded = ref(false);
 const accountsData = ref([]);
 const sortColumn = ref(null);
@@ -83,7 +86,25 @@ const exportToCSV = () => {
   document.body.removeChild(link);
 };
 
+const logout = () => {
+  localStorage.removeItem('auth');
+  router.push('/login');
+};
+
 onMounted(async () => {
+  const isAuthenticated = localStorage.getItem('auth');
+  if (!isAuthenticated) {
+    router.push('/login'); // Redirect to login page if not authenticated
+  }
+
+  const totalAccounts = accounts.length;
+  let loadedAccounts = 0;
+
+  const updateProgress = () => {
+    loadedAccounts += 1;
+    progress.value = Math.ceil((loadedAccounts / totalAccounts) * 100);
+  };
+
   // Fetch Validator Set Data
   const validatorSetUrl = `https://rpc.0l.fyi/v1/accounts/0x1/resource/0x1::stake::ValidatorSet`;
   const validatorSetResponse = await useFetch(validatorSetUrl);
@@ -123,6 +144,8 @@ onMounted(async () => {
       const additionalData = await useFetch(`https://rpc.0l.fyi/v1/accounts/${account.accountAddress}/resources?limit=9999`);
       const additionalDataValue = additionalData.data.value || [];
 
+      updateProgress();
+
       return {
         accountAddress: account.accountAddress,
         friendlyName: account.friendlyName,
@@ -144,25 +167,26 @@ onMounted(async () => {
 });
 </script>
 
-
-
 <template>
-  <div class="p-6">
-    <div class="table-container">
-      <table class="min-w-full lg:table-fixed" v-if="isDataLoaded">
-        <thead class="text-gray-600">
+  <div class="p-6 bg-gray-100 min-h-screen">
+    <div class="table-container bg-white shadow-md rounded-lg">
+      <div v-if="!isDataLoaded" class="flex justify-center items-center">
+        <div class="radial-progress" :style="`--value:${progress}; --size:6rem; --thickness:1rem;`" role="progressbar">{{ progress }}%</div>
+      </div>
+      <table class="min-w-full" v-if="isDataLoaded">
+        <thead class="bg-gray-200 text-gray-600">
           <tr>
-          <th class="p-3 text-left bg-gray-200 th-friendlyName" @click="sortData('friendlyName')">Friendly Name</th>
-          <th class="p-3 text-left bg-gray-200 th-accountAddress" @click="sortData('accountAddress')">Account Address</th>
-          <th class="p-3 text-left bg-gray-200 th-isSlowWallet" @click="sortData('isSlowWallet')">Slow Wallet</th>
-          <th class="p-3 text-left bg-gray-200 th-isValidator" @click="sortData('isValidator')">Is a Validator</th>
-          <th class="p-3 text-left bg-gray-200 th-isInValidatorSet" @click="sortData('isInValidatorSet')">Validating current set</th>
-          <th class="p-3 text-left bg-gray-200 th-isCW" @click="sortData('isCW')">Community Wallet</th>
-          <th class="p-3 text-left bg-gray-200 th-coinValue" @click="sortData('coinValue')">Libra Balance</th>
-          <th class="p-3 text-left bg-gray-200 th-unlockedValue" @click="sortData('unlockedValue')">Unlocked Balance</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('friendlyName')">Friendly Name</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('accountAddress')">Account Address</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isSlowWallet')">Slow Wallet</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isValidator')">Is a Validator</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isInValidatorSet')">Validating current set</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isCW')">Community Wallet</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('coinValue')">Libra Balance</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('unlockedValue')">Unlocked Balance</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody class="bg-white">
           <AccountRow v-for="(account, index) in accountsData" :key="account.accountAddress" :account="account" :index="index" />
           <!-- Dummy Row -->
           <tr>
@@ -172,21 +196,24 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-      <div class="csv-export-button">
-        <button @click="exportToCSV" class="bg-orange-600 hover:bg-orange-300 text-white font-bold py-2 px-4 rounded" v-if="isDataLoaded">
-          CSV ⇩
-        </button>
-      </div>
-    </div>    
+    </div>
+    <div class="mt-4 flex justify-end space-x-2">
+      <button @click="exportToCSV" class="btn btn-warning shadow-md" v-if="isDataLoaded">
+        Export CSV
+      </button>
+      <button @click="logout" class="btn btn-error shadow-md">
+        Logout
+      </button>
+    </div>
   </div>
 </template>
+
+
 
 <style scoped>
 
 .table-container {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end; /* Aligns the button to the right */
+  margin-top: 1rem;
 }
 
 .csv-export-button {
