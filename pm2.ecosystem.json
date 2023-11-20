@@ -11,7 +11,7 @@
         "AUTH_PASSWORD": "REPLACE_ME"
       },
       "instances": 1, 
-      "exec_mode": "fork", // Enable cluster mode for load balancing if using more than 1 instance
+      "exec_mode": "fork",
       "autorestart": true,
       "watch": false,
       "max_memory_restart": "1G"
