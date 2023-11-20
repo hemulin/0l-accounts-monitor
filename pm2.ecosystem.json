@@ -2,8 +2,7 @@
   "apps": [
     {
       "name": "0L-accounts-monitor",
-      "script": "npm",
-      "args": "start",
+      "script": "./.output/server/index.mjs",
       "env": {
         "NODE_ENV": "production",
         "HOST": "0.0.0.0",
