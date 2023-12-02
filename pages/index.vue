@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import accounts from '~/accounts.json';
+import accounts from '~/myAccounts.json';
+import type { Account, TotalSums, FetchResponse, ValidatorSetResponse, AccountResourcesResponse, ValidatorSetResponseType, FetchResourcesResponse, ResourceItem, AccountResourcesResponseType } from '~/types';
 import AccountRow from '~/components/AccountRow.vue';
 import { onMounted, ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
@@ -7,24 +8,30 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const progress = ref(0);
 const isDataLoaded = ref(false);
-const accountsData = ref([]);
-const sortColumn = ref(null);
-const sortOrder = ref(null); // 'asc' for ascending, 'desc' for descending
+const accountsData = ref<Account[]>([]);
+const sortColumn = ref<keyof Account | null>(null);
+const sortOrder = ref<'asc' | 'desc' | null>(null); // 'asc' for ascending, 'desc' for descending
 
-const checkWalletType = (data, type) => data.some(d => d.type === type);
-let validatorAddresses = new Set();
-let validatorList = new Set();
+const checkWalletType = (data: ResourceItem[], type: string): boolean => {
+  return data.some(d => d.type === type);
+};
 
-const totalSums = computed(() => {
+let validatorAddresses = new Set<string>();
+let validatorList = new Set<string>();
+
+const totalSums = computed<TotalSums>(() => {
   let libraBalanceSum = 0;
   let unlockedBalanceSum = 0;
 
   accountsData.value.forEach(account => {
-    if (!isNaN(parseFloat(account.coinValue))) {
-      libraBalanceSum += parseFloat(account.coinValue);
+    const coinValue = typeof account.coinValue === 'number' ? account.coinValue.toString() : account.coinValue;
+    const unlockedValue = typeof account.unlockedValue === 'number' ? account.unlockedValue.toString() : account.unlockedValue;
+
+    if (!isNaN(parseFloat(coinValue))) {
+      libraBalanceSum += parseFloat(coinValue);
     }
-    if (!isNaN(parseFloat(account.unlockedValue))) {
-      unlockedBalanceSum += parseFloat(account.unlockedValue);
+    if (!isNaN(parseFloat(unlockedValue))) {
+      unlockedBalanceSum += parseFloat(unlockedValue);
     }
   });
 
@@ -34,7 +41,8 @@ const totalSums = computed(() => {
   };
 });
 
-const sortData = (column) => {
+
+const sortData = (column: keyof Account) => {
   if (sortColumn.value === column) {
     sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
   } else {
@@ -43,17 +51,28 @@ const sortData = (column) => {
   }
 
   accountsData.value.sort((a, b) => {
-    let valueA = a[column];
-    let valueB = b[column];
+    const valueA = a[column];
+    const valueB = b[column];
 
-    // Check if sorting numeric values
-    if (column === 'coinValue' || column === 'unlockedValue') {
-      valueA = (valueA === 'N/A') ? 0 : parseFloat(valueA);
-      valueB = (valueB === 'N/A') ? 0 : parseFloat(valueB);
+    if (typeof valueA === 'number' && typeof valueB === 'number') {
+      // Both values are numbers
+      return (valueA - valueB) * (sortOrder.value === 'asc' ? 1 : -1);
+    } else if (typeof valueA === 'string' && typeof valueB === 'string') {
+      // Both values are strings
+      if (column === 'coinValue' || column === 'unlockedValue') {
+        // Convert 'N/A' to zero for numeric comparison
+        const numA = valueA === 'N/A' ? 0 : parseFloat(valueA);
+        const numB = valueB === 'N/A' ? 0 : parseFloat(valueB);
+        return (numA - numB) * (sortOrder.value === 'asc' ? 1 : -1);
+      } else {
+        // Regular string comparison
+        return sortOrder.value === 'asc' ? valueA.localeCompare(valueB) : valueB.localeCompare(valueA);
+      }
+    } else if (typeof valueA === 'boolean' && typeof valueB === 'boolean') {
+      // Both values are booleans
+      return (valueA === valueB) ? 0 : (valueA ? -1 : 1) * (sortOrder.value === 'asc' ? 1 : -1);
     }
 
-    if (valueA < valueB) return sortOrder.value === 'asc' ? -1 : 1;
-    if (valueA > valueB) return sortOrder.value === 'asc' ? 1 : -1;
     return 0;
   });
 };
@@ -107,7 +126,8 @@ onMounted(async () => {
 
   // Fetch Validator Set Data
   const validatorSetUrl = `https://rpc.0l.fyi/v1/accounts/0x1/resource/0x1::stake::ValidatorSet`;
-  const validatorSetResponse = await useFetch(validatorSetUrl);
+  const validatorSetResponse = await useFetch<ValidatorSetResponseType>(validatorSetUrl);
+
   if (validatorSetResponse.error.value) {
     console.error('Error fetching validator set:', validatorSetResponse.error.value);
   } else if (validatorSetResponse.data.value) {
@@ -115,34 +135,34 @@ onMounted(async () => {
   }
 
   const accountResourcesUrl = `https://rpc.0l.fyi/v1/accounts/0x1/resources?limit=9999`;
-  const accountResourcesResponse = await useFetch(accountResourcesUrl);
+  const accountResourcesResponse = await useFetch<AccountResourcesResponseType>(accountResourcesUrl);
+
   if (accountResourcesResponse.error.value) {
     console.error('Error fetching account resources:', accountResourcesResponse.error.value);
-  } else if (accountResourcesResponse.data.value) {
+  } else if (accountResourcesResponse.data && Array.isArray(accountResourcesResponse.data.value)) {
     const validatorUniverse = accountResourcesResponse.data.value.find(d => d.type === "0x1::validator_universe::ValidatorUniverse");
     if (validatorUniverse) {
-      validatorList = new Set(validatorUniverse.data.validators);
+      validatorList = new Set(validatorUniverse.data.validators); // Ensure this matches the structure of your data
     }
   }
 
   const fetchPromises = accounts.map(async (account) => {
     const url = `https://rpc.0l.fyi/v1/accounts/${account.accountAddress}/resources?limit=9999`;
-    const { data, error } = await useFetch(url);
+    const response = await useFetch<AccountResourcesResponseType>(url);
 
-    console.log('Fetching data from url:', url)
-
-    if (error.value) {
-      console.error('Error fetching data for account:', account.accountAddress, error.value);
-      return null; // Handle the error as needed
+    if (response.error.value) {
+      console.error('Error fetching data for account:', account.accountAddress, response.error.value);
+      return null;
     }
 
-    if (data.value) {
-      const coinData = data.value.find(d => d.type === "0x1::coin::CoinStore<0x1::libra_coin::LibraCoin>");
-      const walletData = data.value.find(d => d.type === "0x1::slow_wallet::SlowWallet");
+    if (response.data && Array.isArray(response.data.value)) {
+      const resources: ResourceItem[] = response.data.value; // Now TypeScript knows resources is an array of ResourceItem
+      const coinData = resources.find(d => d.type === "0x1::coin::CoinStore<0x1::libra_coin::LibraCoin>");
+      const walletData = resources.find(d => d.type === "0x1::slow_wallet::SlowWallet");
 
       // Fetching additional data for each account
-      const additionalData = await useFetch(`https://rpc.0l.fyi/v1/accounts/${account.accountAddress}/resources?limit=9999`);
-      const additionalDataValue = additionalData.data.value || [];
+      const additionalData = await useFetch<AccountResourcesResponseType>(`https://rpc.0l.fyi/v1/accounts/${account.accountAddress}/resources?limit=9999`);
+      const additionalDataValue = additionalData.data && Array.isArray(additionalData.data.value) ? additionalData.data.value : [];
 
       updateProgress();
 
@@ -162,7 +182,7 @@ onMounted(async () => {
     }
   });
 
-  accountsData.value = (await Promise.all(fetchPromises)).filter(account => account !== null);
+  accountsData.value = (await Promise.all(fetchPromises)).filter((account): account is Account => account !== null);
   isDataLoaded.value = true;
 });
 </script>
@@ -171,23 +191,33 @@ onMounted(async () => {
   <div class="p-6 bg-gray-100 min-h-screen">
     <div class="table-container bg-white shadow-md rounded-lg">
       <div v-if="!isDataLoaded" class="flex justify-center items-center">
-        <div class="radial-progress" :style="`--value:${progress}; --size:6rem; --thickness:1rem;`" role="progressbar">{{ progress }}%</div>
+        <div class="radial-progress" :style="`--value:${progress}; --size:6rem; --thickness:1rem;`" role="progressbar">{{
+          progress }}%</div>
       </div>
       <table class="min-w-full" v-if="isDataLoaded">
         <thead class="bg-gray-200 text-gray-600">
           <tr>
-            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('friendlyName')">Friendly Name</th>
-            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('accountAddress')">Account Address</th>
-            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isSlowWallet')">Slow Wallet</th>
-            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isValidator')">Is a Validator</th>
-            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isInValidatorSet')">Validating current set</th>
-            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isCW')">Community Wallet</th>
-            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('coinValue')">Libra Balance</th>
-            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('unlockedValue')">Unlocked Balance</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('friendlyName')">
+              Friendly Name</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('accountAddress')">
+              Account Address</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isSlowWallet')">Slow
+              Wallet</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isValidator')">Is a
+              Validator</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isInValidatorSet')">
+              Validating current set</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('isCW')">Community
+              Wallet</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('coinValue')">Libra
+              Balance</th>
+            <th class="sticky top-0 z-10 p-3 text-left cursor-pointer bg-gray-200" @click="sortData('unlockedValue')">
+              Unlocked Balance</th>
           </tr>
         </thead>
         <tbody class="bg-white">
-          <AccountRow v-for="(account, index) in accountsData" :key="account.accountAddress" :account="account" :index="index" />
+          <AccountRow v-for="(account, index) in accountsData" :key="account.accountAddress" :account="account"
+            :index="index" />
           <!-- Dummy Row -->
           <tr>
             <td colspan="6"></td>
@@ -211,47 +241,76 @@ onMounted(async () => {
 
 
 <style scoped>
-
 .table-container {
   margin-top: 1rem;
 }
 
 .csv-export-button {
-  margin-top: 1rem; /* Add some space above the button */
+  margin-top: 1rem;
+  /* Add some space above the button */
 }
 
 /* Desktop styles */
 table {
   width: 100%;
-  border-collapse: collapse;  
+  border-collapse: collapse;
 }
 
-th, td {
+th,
+td {
   padding: 8px;
   text-align: left;
   border-bottom: 1px solid #ddd;
-  white-space: nowrap; /* Prevent text wrapping */
+  white-space: nowrap;
+  /* Prevent text wrapping */
 }
 
 th {
   position: sticky;
-  top: 0; /* Stick to the top of the table */
-  z-index: 10; /* Ensure the header is above other content */
+  top: 0;
+  /* Stick to the top of the table */
+  z-index: 10;
+  /* Ensure the header is above other content */
 }
 
 @media (min-width: 1024px) {
-  .th-friendlyName, .td-friendlyName { width: 20%; }
-  .th-accountAddress, .td-accountAddress { width: 20%; }
-  .th-isSlowWallet, .td-isSlowWallet { width: 7%; }
-  .th-isValidator, .td-isValidator { width: 7%; }
-  .th-isInValidatorSet, .td-isInValidatorSet { width: 10%; }
-  .th-isCw, .td-isCw { width: 10%; }
+
+  .th-friendlyName,
+  .td-friendlyName {
+    width: 20%;
+  }
+
+  .th-accountAddress,
+  .td-accountAddress {
+    width: 20%;
+  }
+
+  .th-isSlowWallet,
+  .td-isSlowWallet {
+    width: 7%;
+  }
+
+  .th-isValidator,
+  .td-isValidator {
+    width: 7%;
+  }
+
+  .th-isInValidatorSet,
+  .td-isInValidatorSet {
+    width: 10%;
+  }
+
+  .th-isCw,
+  .td-isCw {
+    width: 10%;
+  }
 }
 
 /* Mobile styles */
 @media (max-width: 600px) {
   thead {
-    display: none; /* Hide table headers */
+    display: none;
+    /* Hide table headers */
   }
 
   tr {
@@ -283,5 +342,4 @@ th {
   color: white;
   text-align: left;
 }
-
 </style>

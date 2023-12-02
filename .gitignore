@@ -1,4 +1,6 @@
 accounts.json
+myAccounts.json
+accountsOfInterest.json
 
 # Nuxt dev/build outputs
 .output
