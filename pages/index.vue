@@ -185,6 +185,7 @@ onMounted(async () => {
   accountsData.value = (await Promise.all(fetchPromises)).filter((account): account is Account => account !== null);
   isDataLoaded.value = true;
 });
+
 </script>
 
 <template>

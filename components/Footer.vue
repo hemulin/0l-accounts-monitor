@@ -1,6 +1,6 @@
 <template>
   <footer class="bg-white text-center py-3 shadow">
-    <p class="text-gray-600">&copy; 2023 Wallet Analytics. All rights reserved.</p>
+    <p class="text-gray-600">&copy; 2023 All rights reserved.</p>
   </footer>
 </template>
 
