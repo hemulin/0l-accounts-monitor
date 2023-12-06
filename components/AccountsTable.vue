@@ -1,5 +1,5 @@
 <template>
-  <div class="table-container bg-white shadow-md rounded-lg">
+  <div class="table-container bg-white shadow-md rounded-lg overflow-x-auto">
     <div v-if="!isDataLoaded" class="flex justify-center items-center">
       <div class="radial-progress" :style="`--value:${progress}; --size:6rem; --thickness:1rem;`" role="progressbar">{{
         progress }}%</div>

@@ -19,24 +19,29 @@ export function useAccounts(accountsJson: Partial<Account>[]) {
   const totalSums = computed<TotalSums>(() => {
     let libraBalanceSum = 0;
     let unlockedBalanceSum = 0;
-
+  
     accountsData.value.forEach(account => {
       const coinValue = typeof account.coinValue === 'number' ? account.coinValue.toString() : account.coinValue;
-      const unlockedValue = typeof account.unlockedValue === 'number' ? account.unlockedValue.toString() : account.unlockedValue;
-
+  
       if (!isNaN(parseFloat(coinValue))) {
         libraBalanceSum += parseFloat(coinValue);
       }
-      if (!isNaN(parseFloat(unlockedValue))) {
-        unlockedBalanceSum += parseFloat(unlockedValue);
+  
+      // Add to unlockedBalanceSum only if not a community wallet
+      if (!account.isCW) {
+        const unlockedValue = typeof account.unlockedValue === 'number' ? account.unlockedValue.toString() : account.unlockedValue;
+        if (!isNaN(parseFloat(unlockedValue))) {
+          unlockedBalanceSum += parseFloat(unlockedValue);
+        }
       }
     });
-
+  
     return {
       libraBalanceSum: (libraBalanceSum / 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 }),
       unlockedBalanceSum: (unlockedBalanceSum / 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 }),
     };
   });
+  
 
 
   const sortData = (column: keyof Account) => {

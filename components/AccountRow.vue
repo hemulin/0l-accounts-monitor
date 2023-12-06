@@ -19,7 +19,10 @@
       <span v-else class="text-red-500">×</span>
     </td>
     <td class="p-3">{{ formatNumber(account.coinValue) }}</td>
-    <td class="p-3">{{ formatNumber(account.unlockedValue) }}</td>
+    <td class="p-3">
+      {{ formatNumber(account.unlockedValue) }}
+      <span v-if="account.isCW" class="warning-icon">⚠️</span>
+    </td>
   </tr>
 </template>
 
@@ -43,4 +46,8 @@ const formatNumber = (value) => {
 <style>
 .icon-checkmark { /* Style for green checkmark */ }
 .icon-cross { /* Style for red cross */ }
+.warning-icon {
+  color: rgb(149, 147, 35);
+  margin-left: 8px;
+}
 </style>
