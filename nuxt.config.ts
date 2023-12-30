@@ -7,4 +7,11 @@ export default defineNuxtConfig({
       authPassword: process.env.ACCOUNTS_MONITOR_PASSWORD || 'password',
     }
   },
+  app: {
+    head: {
+      link: [
+        { rel: 'stylesheet', href: 'https://use.fontawesome.com/releases/v5.15.4/css/all.css' } // Replace with your Font Awesome CDN link
+      ]
+    },
+  },
 })
