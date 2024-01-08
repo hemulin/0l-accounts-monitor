@@ -57,7 +57,7 @@ const totalCoinsSum = computed(() => {
 
 const dailyUnlock = computed(() => {
   const dailyDrip = 35000;
-  const countSlow = props.accountsData?.filter(account => !account.isCW && account.isSlowWallet && (account.coinValue > account.unlockedValue)).length || 0;
+  const countSlow = props.accountsData?.filter(account => !account.isCW && account.isSlowWallet && (Number(account.coinValue) > Number(account.unlockedValue))).length || 0;
   return (countSlow * dailyDrip).toLocaleString('en-US', { maximumFractionDigits: 2 });
 });
 </script>
